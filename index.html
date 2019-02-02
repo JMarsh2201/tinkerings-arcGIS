@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <script src="https://js.arcgis.com/4.9/"></script>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.9/esri/css/main.css">
+  </head>
+  <body>
+    <script>
+      // initiate packages to be used in this dojo toolkit 'require' function
+      require(['esri/Map',
+               'esri/views/MapView',
+               'esri/request',
+               'esri/layers/MapImageLayer',
+               'esri/widgets/Legend',
+               'dojo/on',
+               'dojo/dom',
+               'dojo/dom-construct',
+               'dojo/domReady!'],
+        (Map, MapView, Request, Layer, Legend, on, dom, construct) => {
+        // initiate map with options
+        let map = new Map({
+          basemap: dom.byId('view-basemap').value
+        })
+        // single truth for view options
+        let viewOptions = {
+          container: 'map-view',
+          map,
+          zoom: 11,
+          center: [-113.98, 46.87]
+        }
+        let locationOptions = {
+          missoula: [-113.98, 46.87],
+          nashville: [-86.772, 36.169],
+          stockholm: [18.072, 59.326],
+          perth: [115.859, -31.966],
+          nuuk: [-51.734, 64.174],
+        }
+
+        // initiate how map appears
+        let mapview = new MapView(viewOptions)
+
+        let legend = new Legend({
+          view: mapview
+        })
+        mapview.ui.add(legend, "bottom-left")
+
+        let layersUrl = 'http://sampleserver6.arcgisonline.com/arcgis/rest/services?f=pjson'
+        let responseOptions = { reponseType: 'json' }
+        let services;
+
+        Request(layersUrl, responseOptions)
+        .then((res) => {
+          services = res.data.services
+
+          let servicesDropdown = dom.byId('view-layers')
+          services.forEach(service => {
+            if (service.type === 'MapServer' ) {
+              construct.create(
+                'option',
+                {
+                  innerHTML: service.name,
+                  value: service.name
+                },
+                servicesDropdown
+                )
+            }
+          })
+        })
+
+        let viewLayers = dom.byId('view-layers')
+        let sublayers;
+
+        on(viewLayers, 'change', (evt) => {
+          map.removeAll()
+          viewSublayers.innerHTML = ''
+          if (evt.target.value) {
+            let layer = new Layer({
+              url: `http://sampleserver6.arcgisonline.com/arcgis/rest/services/${viewLayers.value}/MapServer`,
+              opacity: .7
+            })
+            map.add(layer)
+            layer.when(() => {
+              // zooms to boundaries of chosen layer
+              mapview.goTo(layer.fullExtent)
+              // copied and reversed due to backwards ID nomenclature in api
+              sublayers = map.layers.items[0].sublayers.items.slice().reverse()
+              sublayers.forEach(sublayer => {
+                construct.create(
+                  'label',
+                  {
+                    innerHTML: `<input type="checkbox" value=${sublayer.id} checked/>${sublayer.title}`
+                  },
+                  viewSublayers
+                )
+              })
+            })
+          }
+        })
+
+        let viewSublayers = dom.byId('view-sublayers')
+        on(viewSublayers, 'change', (evt) => sublayers[evt.target.value].visible = !sublayers[evt.target.value].visible)
+
+        // event allowing basemap change based on value of dropdown box
+        let viewBasemap = dom.byId('view-basemap')
+        on(viewBasemap, 'change', evt => map.basemap = viewBasemap.value)
+
+        // event allowing center change based on value of dropdown box
+        let viewLocation = dom.byId('view-location')
+        on(viewLocation, 'change', evt => mapview.center = locationOptions[viewLocation.value])
+
+      })
+    </script>
+    <select id="view-basemap" style="margin:5px">
+      <option value="topo">Topographic</option>
+      <option value="satellite">Satellite</option>
+      <option value="osm">Osm</option>
+      <option value="terrain">Terrain</option>
+      <option value="gray">Gray</option>
+    </select>
+    <select id="view-location" style="margin:5px">
+      <option value="missoula">Missoula</option>
+      <option value="nashville">Nashville</option>
+      <option value="stockholm">Stockholm</option>
+      <option value="perth">Perth</option>
+      <option value="nuuk">Nuuk</option>
+    </select>
+    <select id="view-layers">
+      <option value="">--Select a Layer--</option>
+    </select>
+    <form id='view-sublayers'>
+
+    </form>
+    <div id="map-view" style='width:800px;height:500px'>
+      map
+    </div>
+  </body>
+</html>
